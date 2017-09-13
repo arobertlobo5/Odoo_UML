@@ -18,6 +18,8 @@
                 <xpath expr="//notebook[@groups='base.group_no_one']" position="inside">
                     <page string="UML" name="uml_diagrams">
                         <field name="puml_dependency_diagram_png" widget="image"/>
+                        <field name="puml_inv_dependency_diagram_png" widget="image"/>
+                        <field name="puml_class_diagram_png" widget="image"/>
                     </page>
                 </xpath>
                 
