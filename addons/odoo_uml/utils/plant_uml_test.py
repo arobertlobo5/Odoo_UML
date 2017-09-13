@@ -1,7 +1,42 @@
 # -*- coding: utf-8 -*-
 import unittest
 
-from plant_uml import StringUtil, PlantUMLClassDiagram
+from plant_uml import *
+
+
+class TestCreole(unittest.TestCase):
+    def setUp(self):
+        pass
+
+    def test_bold(self):
+        self.assertEqual(
+            bold('a'),
+            '**a**'
+        )
+
+    def test_italic(self):
+        self.assertEqual(
+            italic('a'),
+            '//a//'
+        )
+
+    def test_mono(self):
+        self.assertEqual(
+            mono('a'),
+            '""a""'
+        )
+
+    def test_stroke(self):
+        self.assertEqual(
+            stroke('a'),
+            '--a--'
+        )
+
+    def test_wave(self):
+        self.assertEqual(
+            wave('a'),
+            '~~a~~'
+        )
 
 
 class TestStringUtil(unittest.TestCase):
@@ -135,6 +170,163 @@ class TestPlantUMLClassDiagram(unittest.TestCase):
             .end_uml()
             .output(),
             '@startuml\nA ..> B\n@enduml'
+        )
+
+    def test_add_floating_note(self):
+        self.assertEqual(
+            self.diagram
+            .add_floating_note('A', 'a')
+            .output(),
+            'note "A" as a\n'
+        )
+
+    def test_add_title(self):
+        self.assertEqual(
+            self.diagram
+            .add_title('A')
+            .output(),
+            'title A\n'
+        )
+
+    def test_begin_class(self):
+        self.assertEqual(
+            self.diagram
+            .begin_class(
+                name='A', alias='a', icon='A', icon_color='Yellow',
+                stereotype='model', class_color='#Silver'
+            )
+            .end_class()
+            .output(),
+            'class "A" as a <<(A, Yellow) model>> #Silver {\n\t}\n'
+        )
+
+    def test_add_section(self):
+        self.assertEqual(
+            self.diagram
+            .add_section()
+            .output(),
+            '--\n'
+        )
+
+    def test_end_class(self):
+        self.assertEqual(
+            self.diagram
+            .begin_class('A')
+            .end_class()
+            .output(),
+            'class A {\n\t}\n'
+        )
+
+    def test_add_attribute_composite(self):
+        self.assertEqual(
+            self.diagram
+            .add_attribute(
+                visibility='-',
+                name='attr1',
+                attr_type='int',
+                tags=['inverse', 'compute']
+            )
+            .output(),
+            '- attr1: int {inverse, compute}\n'
+        )
+
+    def test_add_attribute(self):
+        self.assertEqual(
+            self.diagram
+            .add_attribute('- attr1: int {inverse, compute}')
+            .output(),
+            '- attr1: int {inverse, compute}\n'
+        )
+
+    def test_add_method(self):
+        self.assertEqual(
+            self.diagram
+            .add_method('+ test(p1: int, p2: string): void {@api.depend}')
+            .output(),
+            '+ test(p1: int, p2: string): void {@api.depend}\n'
+        )
+
+    def test_add_method_composite(self):
+        self.assertEqual(
+            self.diagram
+            .add_method(
+                visibility='+',
+                name='test',
+                params=[
+                    'self',
+                    ('p1', 'int'),
+                    ('p2', 'string')
+                ],
+                ret_type='string',
+                tags=['@getter']
+            )
+            .output(),
+            '+ test(self, p1: int, p2: string): string {@getter}\n'
+        )
+
+    def test_add_association(self):
+        self.assertEqual(
+            self.diagram
+            .add_association(
+                'A', 'B',
+                card1='*',
+                card2='id_b'
+            )
+            .output(),
+            'A "*" -- "id_b" B\n'
+        )
+
+    def test_add_aggregation(self):
+        self.assertEqual(
+            self.diagram
+            .add_aggregation(
+                'A', 'B',
+                card1='*',
+                card2='id_b'
+            )
+            .output(),
+            'A "*" --o "id_b" B\n'
+        )
+
+    def test_add_composition(self):
+        self.assertEqual(
+            self.diagram
+            .add_composition(
+                'A', 'B',
+                card1='*',
+                card2='id_b'
+            )
+            .output(),
+            'A "*" --* "id_b" B\n'
+        )
+
+    def test_add_association_named(self):
+        self.assertEqual(
+            self.diagram
+            .add_association(
+                'A', 'B',
+                card1='*',
+                card2='id_b',
+                name='has >'
+            )
+            .output(),
+            'A "*" -- "id_b" B : has >\n'
+        )
+
+    def test_add_implementation(self):
+        self.assertEqual(
+            self.diagram
+            .add_implementation('A', 'B')
+            .output(),
+            'B <|.. A\n'
+        )
+
+    def test_add_inherit(self):
+        self.assertEqual(
+            self.diagram
+            .add_inherit('A', 'B')
+            .output(),
+            'A --|> B\n'
         )
 
 
