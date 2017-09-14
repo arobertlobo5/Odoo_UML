@@ -91,7 +91,7 @@ class TestPlantUMLClassDiagram(unittest.TestCase):
     def test_begin_uml(self):
         self.assertEqual(
             self.diagram.begin_uml().end_uml().output(),
-            '@startuml\n@enduml'
+            '@startuml\nhide empty members\n@enduml'
         )
 
     def test_begin_package(self):
@@ -102,7 +102,7 @@ class TestPlantUMLClassDiagram(unittest.TestCase):
             .end_package()
             .end_uml()
             .output(),
-            '@startuml\npackage "demo" {\n\t\n}\n@enduml'
+            '@startuml\npackage "demo" {\n\t\n}\nhide empty members\n@enduml'
         )
 
     def test_begin_package_stetreotype(self):
@@ -113,7 +113,7 @@ class TestPlantUMLClassDiagram(unittest.TestCase):
             .end_package()
             .end_uml()
             .output(),
-            '@startuml\npackage "demo" <<Cloud>> {\n\t\n}\n@enduml'
+            '@startuml\npackage "demo" <<Cloud>> {\n\t\n}\nhide empty members\n@enduml'
         )
 
     def test_begin_package_alias(self):
@@ -124,7 +124,7 @@ class TestPlantUMLClassDiagram(unittest.TestCase):
             .end_package()
             .end_uml()
             .output(),
-            '@startuml\npackage "demo" as pd0000 <<Cloud>> {\n\t\n}\n@enduml'
+            '@startuml\npackage "demo" as pd0000 <<Cloud>> {\n\t\n}\nhide empty members\n@enduml'
         )
 
     def test_begin_package_color(self):
@@ -135,7 +135,7 @@ class TestPlantUMLClassDiagram(unittest.TestCase):
             .end_package()
             .end_uml()
             .output(),
-            '@startuml\npackage "demo" as pd0000 <<Cloud>> #DDDDDD {\n\t\n}\n@enduml'
+            '@startuml\npackage "demo" as pd0000 <<Cloud>> #DDDDDD {\n\t\n}\nhide empty members\n@enduml'
         )
 
     def test_begin_package_inner(self):
@@ -148,8 +148,8 @@ class TestPlantUMLClassDiagram(unittest.TestCase):
             .end_package()
             .end_uml()
             .output(),
-            '@startuml\npackage "demo" as pd0000 <<Cloud>> #DDDDDD {\n\tpackage "inner"'
-            ' as pd0001 <<Cloud>> #DDDDDD {\n\t\t\n\t}\n\t\n}\n@enduml'
+            '@startuml\npackage "demo" as pd0000 <<Cloud>> #DDDDDD {\n\tpackage "inner" as pd0001 <<Cloud>> '
+            '#DDDDDD {\n\t\t\n\t}\n\t\n}\nhide empty members\n@enduml'
         )
 
     def test_add_dependency(self):
@@ -159,7 +159,7 @@ class TestPlantUMLClassDiagram(unittest.TestCase):
             .add_dependency('A', 'B')
             .end_uml()
             .output(),
-            '@startuml\nA ..> B\n@enduml'
+            '@startuml\nA ..> B\nhide empty members\n@enduml'
         )
 
     def test_add_dependency_alias(self):
@@ -169,7 +169,7 @@ class TestPlantUMLClassDiagram(unittest.TestCase):
             .add_dependency('A', 'B')
             .end_uml()
             .output(),
-            '@startuml\nA ..> B\n@enduml'
+            '@startuml\nA ..> B\nhide empty members\n@enduml'
         )
 
     def test_add_floating_note(self):
@@ -285,7 +285,7 @@ class TestPlantUMLClassDiagram(unittest.TestCase):
                 card2='id_b'
             )
             .output(),
-            'A "*" --o "id_b" B\n'
+            'A "*" o-- "id_b" B\n'
         )
 
     def test_add_composition(self):
@@ -297,7 +297,7 @@ class TestPlantUMLClassDiagram(unittest.TestCase):
                 card2='id_b'
             )
             .output(),
-            'A "*" --* "id_b" B\n'
+            'A "*" *-- "id_b" B\n'
         )
 
     def test_add_association_named(self):
@@ -326,7 +326,7 @@ class TestPlantUMLClassDiagram(unittest.TestCase):
             self.diagram
             .add_inherit('A', 'B')
             .output(),
-            'A --|> B\n'
+            'B <|-- A\n'
         )
 
 
