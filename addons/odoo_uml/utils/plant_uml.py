@@ -128,6 +128,7 @@ class PlantUMLClassDiagram(StringUtil):
     def end_uml(self):
         if self.footer is not None:
             self.add_footer(self.footer, align='left')
+        self.append('hide empty members').newline()
         return self.append('@enduml')
 
     # , stereotype=None, alias=None, icon=None, icon_color=None, class_color=None
