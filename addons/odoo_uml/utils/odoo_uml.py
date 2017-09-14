@@ -19,18 +19,25 @@ PLANT_UML_PATH = path.realpath(
 )
 
 
-def GET_METHODS(CLS):
-    return [method for method in dir(CLS) if inspect.ismethod(getattr(CLS, method))]
+def GET_METHODS(CLS, module_name=None):
+    members = inspect.getmembers(CLS)
+    methods = []
+    for name, value in members:
+        if inspect.ismethod(value):
+            if module_name:
+                try:
+                    if value.im_class._module == module_name:
+                        methods.append(name)
+                except AttributeError:
+                    pass
+            else:
+                methods.append(name)
 
+    return methods
 
-def HASH_METHODS(CLS):
-    return {
-        method: getattr(CLS, method) for method in GET_METHODS(CLS)
-    }
-
-BASE_MODEL_METHODS = GET_METHODS(models.Model), HASH_METHODS(models.Model)
-BASE_ABSTRACT_METHODS = GET_METHODS(models.AbstractModel), HASH_METHODS(models.AbstractModel)
-BASE_TRANSIENT_METHODS = GET_METHODS(models.TransientModel), HASH_METHODS(models.TransientModel)
+BASE_MODEL_METHODS = GET_METHODS(models.Model)
+BASE_ABSTRACT_METHODS = GET_METHODS(models.AbstractModel)
+BASE_TRANSIENT_METHODS = GET_METHODS(models.TransientModel)
 EXCLUDE_METHODS = []
 
 _logger = logging.getLogger(__name__)
@@ -263,7 +270,6 @@ class ClassDiagram(PlantUMLClassDiagram, UtilMixin):
         rec_field = ClassDiagram.record_field(field)
         for key in properties_name:
             properties[key] = getattr(rec_field, key, None)
-        # print field.model_id.model, properties
         return properties
 
     def inverse_field_many2one(self, model, field):
@@ -443,19 +449,20 @@ class ClassDiagram(PlantUMLClassDiagram, UtilMixin):
         return self
 
     def __detect_methods(self, model):
+        module, model = self._resolve(model.model)
         rec = ClassDiagram.record_model(model)
-        methods, methods_hash = GET_METHODS(rec), HASH_METHODS(rec)
+        methods = GET_METHODS(rec, module.name)
 
         bases = [rec._inherit] if isinstance(rec._inherit, basestring) else rec._inherit
         bases_methods, bases_methods_hash = [], {}
 
         if not bases:
             if isinstance(model, models.TransientModel):
-                bases_methods, bases_methods_hash = BASE_TRANSIENT_METHODS
+                bases_methods = BASE_TRANSIENT_METHODS
             elif isinstance(model, models.Model):
-                bases_methods, bases_methods_hash = BASE_MODEL_METHODS
+                bases_methods = BASE_MODEL_METHODS
             elif isinstance(model, models.AbstractModel):
-                bases_methods, bases_methods_hash = BASE_ABSTRACT_METHODS
+                bases_methods = BASE_ABSTRACT_METHODS
             bases = [False]
         for base in bases:
             if base:
@@ -463,9 +470,8 @@ class ClassDiagram(PlantUMLClassDiagram, UtilMixin):
                 if module_base is None or model_base is None:
                     continue
                 rec_base = ClassDiagram.record_model(model_base)
-                bases_methods, bases_methods_hash = GET_METHODS(rec_base), HASH_METHODS(rec_base)
+                bases_methods = GET_METHODS(rec_base)
             for method in bases_methods:
-                print method, methods_hash[method].__func__, bases_methods_hash[method].__func__
                 if method in methods:
                     methods.remove(method)
         return methods
@@ -474,6 +480,8 @@ class ClassDiagram(PlantUMLClassDiagram, UtilMixin):
         if not kwargs.get('show_model_methods', True):
             return self
         methods = self.__detect_methods(model)
+        rec = ClassDiagram.record_model(model)
+        hash_methods = {key: value for key, value in inspect.getmembers(rec)}
         if methods:
             self.add_section()
         for method in methods:
@@ -483,9 +491,30 @@ class ClassDiagram(PlantUMLClassDiagram, UtilMixin):
                 visibility = '#'
             else:
                 visibility = '+'
+
+            params = []
+            args, varargs, keywords, defaults = inspect.getargspec(hash_methods[method])
+            print method, args, varargs, keywords, defaults
+            if defaults:
+                for i, name in enumerate(args):
+                    try:
+                        if name == 'self':
+                            params.append(name)
+                        else:
+                            params.append('{0}={1}'.format(name, defaults[i-1]))
+                    except IndexError:
+                        params.append(name)
+            else:
+                for name in args:
+                    params.append(name)
+            if varargs:
+                params.append('*{0}'.format(varargs))
+            if keywords:
+                params.append('**{0}'.format(keywords))
             self.add_method(
                 visibility=visibility,
-                name=method
+                name=method,
+                params=params
             )
 
     def produce_constraints(self, model, **kwargs):
@@ -575,7 +604,6 @@ class ClassDiagram(PlantUMLClassDiagram, UtilMixin):
             relation = rec_field.relation if rec_field.relation else ClassDiagram.__default_m2m_namerel(model, model_2m)
             column1 = rec_field.column1 if rec_field.column1 else '%s_id' % rec._table
             column2 = rec_field.column2 if rec_field.column2 else '%s_id' % rec_m2._table
-            print model.model, column1, relation, model_2m.model, column2
             module_rel, model_rel = self._resolve(relation)
             # If defined then ensure
             if model_rel:
