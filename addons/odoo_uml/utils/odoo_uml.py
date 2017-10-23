@@ -18,20 +18,39 @@ PLANT_UML_PATH = path.realpath(
     path.join(path.dirname(__file__), '..', 'bin', 'plantuml.jar')
 )
 
+API_DECORATORS = [
+    'multi',
+    'one',
+    'model',
+    'model_cr',
+    'model_cr_context',
+    'cr',
+    'cr_context',
+    'cr_uid',
+    'cr_uid_context',
+    'cr_uid_id',
+    'cr_uid_id_context',
+    'cr_uid_ids',
+    'cr_uid_ids_context',
+    'cr_uid_records',
+    'cr_uid_records_context',
+    'v8'
+]
+
 
 def GET_METHODS(CLS, module_name=None):
-    members = inspect.getmembers(CLS)
+    members = inspect.getmembers(CLS, predicate=lambda m: inspect.ismethod(m))
     methods = []
     for name, value in members:
-        if inspect.ismethod(value):
-            if module_name:
-                try:
-                    if value.im_class._module == module_name:
-                        methods.append(name)
-                except AttributeError:
-                    pass
-            else:
-                methods.append(name)
+        if module_name:
+            try:
+                module = str(inspect.getmodule(value))
+                if module_name in module:
+                    methods.append(name)
+            except AttributeError:
+                pass
+        else:
+            methods.append(name)
 
     return methods
 
@@ -56,7 +75,10 @@ class UtilMixin(object):
         process = Popen(args, stdout=PIPE, stderr=PIPE)
         std_out = str()
         while process.poll() is None:
-            std_out += process.stdout.readline()
+            line = process.stdout.readline()
+            if line:
+                std_out += line
+                _logger.info(line)
         return std_out
 
     @staticmethod
@@ -87,7 +109,7 @@ class UtilMixin(object):
         f_out_puml.close()
 
         log = UtilMixin.execute_cmd(
-            'java', '-jar', PLANT_UML_PATH, '-tpng',
+            'java', '-jar', PLANT_UML_PATH, '-tpng', '-v',
             f_out_puml.name, '-o', '"%s"' % path.dirname(f_out_puml.name)
         )
 
@@ -436,7 +458,7 @@ class ClassDiagram(PlantUMLClassDiagram, UtilMixin):
             if rec._parent_store:
                 self.add_attribute('_parent_store = True')
             if rec._parent_order:
-                self.add_attribute('_parent_order = True')
+                self.add_attribute('_parent_order = {0}'.format(rec._parent_order))
 
             if rec._inherits:
                 self.add_section('..', '//inherits from//')
@@ -452,34 +474,44 @@ class ClassDiagram(PlantUMLClassDiagram, UtilMixin):
         module, model = self._resolve(model.model)
         rec = ClassDiagram.record_model(model)
         methods = GET_METHODS(rec, module.name)
-
+        overrrides = []
         bases = [rec._inherit] if isinstance(rec._inherit, basestring) else rec._inherit
-        bases_methods, bases_methods_hash = [], {}
+        bases_methods = []
 
         if not bases:
             if isinstance(model, models.TransientModel):
+                rec_base = models.TransientModel
                 bases_methods = BASE_TRANSIENT_METHODS
             elif isinstance(model, models.Model):
+                rec_base = models.Model
                 bases_methods = BASE_MODEL_METHODS
             elif isinstance(model, models.AbstractModel):
+                rec_base = models.AbstractModel
                 bases_methods = BASE_ABSTRACT_METHODS
             bases = [False]
         for base in bases:
             if base:
-                module_base, model_base = self._resolve(base)
+                module_base, model_base = self._resolve(base, near=model.model != base)
                 if module_base is None or model_base is None:
                     continue
                 rec_base = ClassDiagram.record_model(model_base)
-                bases_methods = GET_METHODS(rec_base)
+                bases_methods = GET_METHODS(rec_base, module_name=module_base.name)
             for method in bases_methods:
                 if method in methods:
-                    methods.remove(method)
-        return methods
+                    # are equal?
+                    base_method = getattr(rec_base, method).__func__
+                    own_method = getattr(rec, method).__func__
+                    if base_method == own_method:
+                        methods.remove(method)
+                    else:
+                        overrrides.append(method)
+        return methods, overrrides
 
     def produce_methods(self, model, **kwargs):
         if not kwargs.get('show_model_methods', True):
             return self
-        methods = self.__detect_methods(model)
+
+        methods, overrides = self.__detect_methods(model)
         rec = ClassDiagram.record_model(model)
         hash_methods = {key: value for key, value in inspect.getmembers(rec)}
         if methods:
@@ -492,29 +524,20 @@ class ClassDiagram(PlantUMLClassDiagram, UtilMixin):
             else:
                 visibility = '+'
 
-            params = []
-            args, varargs, keywords, defaults = inspect.getargspec(hash_methods[method])
-            print method, args, varargs, keywords, defaults
-            if defaults:
-                for i, name in enumerate(args):
-                    try:
-                        if name == 'self':
-                            params.append(name)
-                        else:
-                            params.append('{0}={1}'.format(name, defaults[i-1]))
-                    except IndexError:
-                        params.append(name)
-            else:
-                for name in args:
-                    params.append(name)
-            if varargs:
-                params.append('*{0}'.format(varargs))
-            if keywords:
-                params.append('**{0}'.format(keywords))
+            params = inspect.formatargspec(*inspect.getargspec(hash_methods[method]))[1:-1]
+            tags = []
+            if method in overrides:
+                tags.append('//override//')
+            try:
+                if hash_methods[method]._api in API_DECORATORS:
+                    tags.append(italic(hash_methods[method]._api))
+            except AttributeError:
+                pass
             self.add_method(
                 visibility=visibility,
                 name=method,
-                params=params
+                params=params,
+                tags=tags if tags else None
             )
 
     def produce_constraints(self, model, **kwargs):
@@ -542,10 +565,8 @@ class ClassDiagram(PlantUMLClassDiagram, UtilMixin):
         model = ClassDiagram.record_model(model)
         comodel = ClassDiagram.record_model(comodel)
         tables = sorted([model._table, comodel._table])
-        assert tables[0] != tables[1], \
-            "Implicit/canonical naming of many2many relationship " \
-            "table is not possible when source and destination models " \
-            "are the same"
+        if tables[0] == tables[1]:
+            _logger.error("Fail M2M default relation: %s", tables[0])
         return '%s_%s_rel' % tuple(tables)
 
     def __produce_m2m_classrel(self, **kwargs):
@@ -594,14 +615,23 @@ class ClassDiagram(PlantUMLClassDiagram, UtilMixin):
             rec_field = ClassDiagram.record_field(field)
             module_2m, model_2m = self._resolve(rec_field.comodel_name)
             if module_2m is None or model_2m is None:
-                _logger.info(
+                _logger.warn(
                     "Extrange many2many relationship in %s, %s for %s",
                     model.model, field.name, rec_field.comodel_name
                 )
                 return self
             rec_m2 = ClassDiagram.record_model(model_2m)
-            self.ensure_external_model(module_2m, model_2m, **kwargs)
-            relation = rec_field.relation if rec_field.relation else ClassDiagram.__default_m2m_namerel(model, model_2m)
+            if module_2m.name != self._module.name:
+                self.ensure_external_model(module_2m, model_2m, **kwargs)
+            relation = rec_field.relation
+            if not relation:
+                relation = field.relation_table
+            if not relation:
+                _logger.warn(
+                    "Need a default M2M relation with: %s and %s. Field relations: %s and %s",
+                    model.model, model_2m.model, rec_field.relation, field.relation_table
+                )
+                relation = ClassDiagram.__default_m2m_namerel(model, model_2m)
             column1 = rec_field.column1 if rec_field.column1 else '%s_id' % rec._table
             column2 = rec_field.column2 if rec_field.column2 else '%s_id' % rec_m2._table
             module_rel, model_rel = self._resolve(relation)
@@ -697,13 +727,13 @@ class ClassDiagram(PlantUMLClassDiagram, UtilMixin):
 
     def produce_inherit_relations(self, model, **kwargs):
         rec = ClassDiagram.record_model(model)
-        inherit_list = rec._inherit if isinstance(rec._inherit, list) else [rec._inherit]
+        inherit_list = rec._inherit if isinstance(rec._inherit, (list, tuple,)) else [rec._inherit]
         for inherit in inherit_list:
             # two posibilities
             if model.model == inherit:
                 module_inherit, model_inherit = self._resolve(inherit, near=False)
                 if model_inherit is None or module_inherit is None:
-                    _logger.info("Extrange inherith in %s (Class Inheritance)", model.name)
+                    _logger.warn("Extrange inherith in %s (Class Inheritance) with %s", model.model, inherit)
                     return self
                 self.ensure_external_model(module_inherit, model_inherit, **kwargs)
                 # Extension (Class Inheritance)
@@ -715,7 +745,7 @@ class ClassDiagram(PlantUMLClassDiagram, UtilMixin):
             else:
                 module_inherit, model_inherit = self._resolve(inherit)
                 if model_inherit is None or module_inherit is None:
-                    _logger.info("Extrange inherith in %s (Prototype Inheritance)", model.name)
+                    _logger.warn("Extrange inherith in %s (Prototype Inheritance) with %s", model.model, inherit)
                     return self
                 self.ensure_external_model(module_inherit, model_inherit, **kwargs)
                 # Prototype (Prototype Inheritance)
