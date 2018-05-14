@@ -7,15 +7,15 @@
 
 import logging
 
-from odoo import models, fields, api, _
+from openerp import models, fields, api, _
 
 try:
-    from odoo.addons.odoo_uml.utils.plant_uml import PlantUMLClassDiagram, bold, italic
+    from openerp.addons.odoo_uml.utils.plant_uml import PlantUMLClassDiagram, bold, italic
 except ImportError:
     from ..utils.plant_uml import PlantUMLClassDiagram, bold, italic
 
 try:
-    from odoo.addons.odoo_uml.utils.odoo_uml import PackageDiagram, InvPackageDiagram, ClassDiagram
+    from openerp.addons.odoo_uml.utils.odoo_uml import PackageDiagram, InvPackageDiagram, ClassDiagram
 except ImportError:
     from ..utils.odoo_uml import PackageDiagram, InvPackageDiagram, ClassDiagram
 

@@ -10,7 +10,7 @@ from subprocess import Popen
 from base64 import b64encode
 from tempfile import NamedTemporaryFile
 
-from odoo import models, _
+from openerp import models, _
 from plant_uml import PlantUMLClassDiagram, italic, bold
 
 PIPE = -1
